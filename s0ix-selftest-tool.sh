@@ -494,60 +494,49 @@ pkg_output() {
     exit 0
   fi
 
+  # It only shows "CPU%c1 CPU%c6 CPU%c7 Pkg%pc3 Pkg%pc6 Pkg%pc10 SYS%LPI" columns on some machines
+  # while not like "CPU%c1 CPU%c6 CPU%c7 Pkg%pc2 Pkg%pc3 Pkg%pc8 Pkg%pc9 Pk%pc10 SYS%LPI"
+  # so we need to dynamically shift to the correct column
+  # define a variable to store the column number which begins with c7 at index 3
+  # and convert the variable to a number
+  col_num=3
   cc7=$(echo "$turbostat_after_s2idle" | sed -n '/CPU\%c7/{n;p}' |
-    awk '{print $3}')
-  log_output "\nCPU Core C7 residency after S2idle is: $cc7"
+    awk '{print $'"$col_num"'}')
+  if [ -z "$cc7" ]; then
+    log_output "No CPU Core C7 residency"
+    exit 0
+  else
+    log_output "CPU Core C7 residency after S2idle is: $cc7"
+    col_num=$((col_num + 1))
+  fi
 
   rc6=$(echo "$turbostat_after_s2idle" | sed -n '/GFX\%rc6/{n;p}' |
-    awk '{print $4}')
-  log_output "GFX RC6 residency after S2idle is: $rc6"
-  if [ -z "$rc6" ]; then
-    pkg2=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc2/{n;p}' |
-      awk '{print $4}')
-    log_output "CPU Package C-state 2 residency after S2idle is: $pkg2"
+    awk '{print $'"$col_num"'}')
+  if [ ! -z "$rc6" ]; then
+    log_output "GFX RC6 residency after S2idle is: $rc6"
+    col_num=$((col_num + 1))
+  fi
 
-    pkg3=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc3/{n;p}' |
-      awk '{print $5}')
-    log_output "CPU Package C-state 3 residency after S2idle is: $pkg3"
+  for i in 2 3 6 7 8 9; do
+    pkg=$(echo "$turbostat_after_s2idle" | sed -n "/Pkg\%pc$i/{n;p}" |
+      awk '{print $'"$col_num"'}')
+    if [ ! -z "$pkg" ]; then
+      log_output "CPU Package C-state $i residency after S2idle is: $pkg"
+      eval "pkg$i=$pkg"
+      col_num=$((col_num + 1))
+    fi
+  done
 
-    pkg8=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc8/{n;p}' |
-      awk '{print $8}')
-    log_output "CPU Package C-state 8 residency after S2idle is: $pkg8"
-
-    pkg9=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc9/{n;p}' |
-      awk '{print $9}')
-    log_output "CPU Package C-state 9 residency after S2idle is: $pkg9"
-
-    pkg10=$(echo "$turbostat_after_s2idle" | sed -n '/Pk\%pc10/{n;p}' |
-      awk '{print $10}')
+  pkg10=$(echo "$turbostat_after_s2idle" | sed -n '/Pk\%pc10/{n;p}' |
+    awk '{print $'"$col_num"'}')
+  if [ ! -z "$pkg10" ]; then
     log_output "CPU Package C-state 10 residency after S2idle is: $pkg10"
+    col_num=$((col_num + 1))
+  fi
 
-    slp_s0=$(echo "$turbostat_after_s2idle" | sed -n '/SYS\%LPI/{n;p}' |
-      awk '{print $11}')
-    log_output "S0ix residency after S2idle is: $slp_s0"
-  else
-    pkg2=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc2/{n;p}' |
-      awk '{print $5}')
-    log_output "CPU Package C-state 2 residency after S2idle is: $pkg2"
-
-    pkg3=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc3/{n;p}' |
-      awk '{print $6}')
-    log_output "CPU Package C-state 3 residency after S2idle is: $pkg3"
-
-    pkg8=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc8/{n;p}' |
-      awk '{print $9}')
-    log_output "CPU Package C-state 8 residency after S2idle is: $pkg8"
-
-    pkg9=$(echo "$turbostat_after_s2idle" | sed -n '/Pkg\%pc9/{n;p}' |
-      awk '{print $10}')
-    log_output "CPU Package C-state 9 residency after S2idle is: $pkg9"
-
-    pkg10=$(echo "$turbostat_after_s2idle" | sed -n '/Pk\%pc10/{n;p}' |
-      awk '{print $11}')
-    log_output "CPU Package C-state 10 residency after S2idle is: $pkg10"
-
-    slp_s0=$(echo "$turbostat_after_s2idle" | sed -n '/SYS\%LPI/{n;p}' |
-      awk '{print $12}')
+  slp_s0=$(echo "$turbostat_after_s2idle" | sed -n '/SYS\%LPI/{n;p}' |
+    awk '{print $'"$col_num"'}')
+  if [ ! -z "$slp_s0" ]; then
     log_output "S0ix residency after S2idle is: $slp_s0"
   fi
 
